@@ -1,0 +1,91 @@
+version: '3'
+
+services:
+    # Proxy
+    reverse-proxy:
+        image: nginx:alpine
+        container_name: proxy
+        restart: unless-stopped
+        depends_on:
+            - vue
+            - react
+            - api
+        volumes:
+            - ./nginx/conf.d:/etc/nginx/conf.d/
+            - ./:/var/www
+            - ./storage:/var/www/storage
+            - ./public:/var/www/public
+        ports:
+            - "80:80"
+            - "443:443"
+        networks:
+            - app-network
+    # Vue JS Admin
+    vue:
+        image: vue
+        container_name: js-admin
+        build:
+            context: ./js-apps/backend-vue
+        restart: on-failure
+        networks:
+            - app-network
+    # React JS Frontend
+    react:
+        image: react
+        container_name: js-front
+        build:
+            context: ./js-apps/frontend
+        restart: on-failure
+        networks:
+            - app-network
+    # PHP - Laravel API
+    api:
+        build:
+            context: .
+            dockerfile: Dockerfile
+        image: digitalocean.com/php
+        container_name: laravel-api
+        restart: unless-stopped
+        tty: true
+        environment:
+            SERVICE_NAME: app
+            SERVICE_TAGS: dev
+        working_dir: /var/www
+        env_file: '.env'
+        volumes:
+            - ./:/var/www
+            - ./storage:/var/www/storage
+            - ./public:/var/www/public
+            - ./php/local.ini:/usr/local/etc/php/conf.d/local.ini
+        networks:
+            - app-network
+        ports:
+            - "9000:80"
+    #MySQL Service
+    db:
+        image: mysql:5.7.34
+        platform: linux/x86_64
+        container_name: db
+        restart: unless-stopped
+        tty: true
+        ports:
+            - "3306:3306"
+        environment:
+            MYSQL_DATABASE: laravel
+            MYSQL_ROOT_PASSWORD: root
+            SERVICE_TAGS: dev
+            SERVICE_NAME: mysql
+        networks:
+            - app-network
+        volumes:
+            - dbdata:/var/lib/mysql
+            - ./mysql/my.cnf:/etc/mysql/my.cnf
+
+#Docker Networks
+networks:
+    app-network:
+        driver: bridge
+#Volumes
+volumes:
+    dbdata:
+        driver: local
